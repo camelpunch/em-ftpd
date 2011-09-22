@@ -16,6 +16,10 @@ describe FTPServer do
     it "responds with 220 when connection is opened" do
       subject.sent_data.should match(/220.+/)
     end
+
+    it "includes Superhug branding" do
+      subject.sent_data.should match(/Superhug/)
+    end
   end
 
   describe "ALLO" do

@@ -32,7 +32,7 @@ class FTPServer < EM::Protocols::LineAndTextProtocol
     @mode   = :binary
     @name_prefix = "/"
 
-    send_response "220 FTP server (rftpd) ready"
+    send_response "220 Welcome to the Superhug FTP Server"
   end
 
   # I used to implement the standard receive_data callback, then buffer data
