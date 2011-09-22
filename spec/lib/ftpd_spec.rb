@@ -177,7 +177,6 @@ describe FTPServer do
         "drwxr-xr-x 1 owner group            0 #{timestr} ..",
         "-rwxr-xr-x 1 owner group           40 #{timestr} two.txt"
       ]
-      subject = FTPServer.new(nil)
     end
 
     it "responds with 530 when called by non-logged in user" do
@@ -187,7 +186,6 @@ describe FTPServer do
     end
 
     it "responds with 150 ...425  when called with no data socket" do
-      subject = FTPServer.new(nil)
       subject.receive_line("USER test")
       subject.receive_line("PASS 1234")
       subject.reset_sent!
@@ -307,7 +305,6 @@ describe FTPServer do
       timestr = Time.now.strftime("%b %d %H:%M")
       @root_array  = %w{ . .. files one.txt }
       @files_array = %w{ . .. two.txt}
-      subject = FTPServer.new(nil)
     end
 
     it "responds with 530 when called by non-logged in user" do
@@ -317,7 +314,6 @@ describe FTPServer do
     end
 
     it "responds with 150 ...425  when called with no data socket" do
-      subject = FTPServer.new(nil)
       subject.receive_line("USER test")
       subject.receive_line("PASS 1234")
       subject.reset_sent!
