@@ -8,6 +8,12 @@ require 'fake_ftp_server'
 describe FTPServer do
   subject { FTPServer.new(nil) }
 
+  def log_in
+    subject.stub(:authentic?).and_return(true)
+    subject.receive_line("USER test")
+    subject.receive_line("PASS 1234")
+  end
+
   describe "initialisation" do
     it "defaults to a root name_prefix" do
       subject.name_prefix.should eql("/")
@@ -22,6 +28,36 @@ describe FTPServer do
     end
   end
 
+  describe "logging in with a superhug user" do
+    let(:response) { stub 'Response', :success? => success }
+
+    before do
+      Superhug.should_receive(:post).with('/user_session.json', :body => {
+        :user_session => { :username => 'fella', :password => 'somepassword' }
+      }).and_return(response)
+    end
+
+    context "when superhug authentication succeeds" do
+      let(:success) { true }
+
+      it "responds with 230 (password correct)" do
+        subject.receive_line("USER fella")
+        subject.receive_line("PASS somepassword")
+        subject.sent_data.should match(/230.+/)
+      end
+    end
+
+    context "when superhug authentication fails" do
+      let(:success) { false }
+
+      it "responds with 530 (incorrect login)" do
+        subject.receive_line("USER fella")
+        subject.receive_line("PASS somepassword")
+        subject.sent_data.should match(/530.+/)
+      end
+    end
+  end
+
   describe "ALLO" do
     it "always responds with 202 when called" do
       subject.reset_sent!
@@ -31,32 +67,33 @@ describe FTPServer do
   end
 
   describe "CDUP" do
-    it "responds with 530 if user is not logged in" do
-      subject.reset_sent!
-      subject.receive_line("CDUP")
-      subject.sent_data.should match(/530.*/)
-      subject.name_prefix.should eql("/")
+    context "user not logged in" do
+      it "responds with 530" do
+        subject.reset_sent!
+        subject.receive_line("CDUP")
+        subject.sent_data.should match(/530.*/)
+        subject.name_prefix.should eql("/")
+      end
     end
 
-    it "responds with 250 if called from root" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("CDUP")
-      subject.sent_data.should match(/250.+/)
-      subject.name_prefix.should eql("/")
-    end
+    context "logged in" do
+      before { log_in }
 
-    it "responds with 250 if called from incoming dir" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("CWD files")
-      subject.reset_sent!
-      subject.receive_line("CDUP")
-      subject.sent_data.should match(/250.+/)
-      subject.name_prefix.should eql("/")
-    end
+      it "responds with 250 if called from root" do
+        subject.reset_sent!
+        subject.receive_line("CDUP")
+        subject.sent_data.should match(/250.+/)
+        subject.name_prefix.should eql("/")
+      end
 
+      it "responds with 250 if called from incoming dir" do
+        subject.receive_line("CWD files")
+        subject.reset_sent!
+        subject.receive_line("CDUP")
+        subject.sent_data.should match(/250.+/)
+        subject.name_prefix.should eql("/")
+      end
+    end
   end
 
   describe "CWD" do
@@ -66,88 +103,74 @@ describe FTPServer do
       subject.sent_data.should match(/530.*/)
     end
 
-    it "responds with 250 if called with '..' from users home" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("CWD ..")
-      subject.sent_data.should match(/250.+/)
-      subject.name_prefix.should eql("/")
-    end
+    context "logged in" do
+      before { log_in }
 
-    it "responds with 250 if called with '.' from users home" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("CWD .")
-      subject.sent_data.should match(/250.+/)
-      subject.name_prefix.should eql("/")
-    end
+      it "responds with 250 if called with '..' from users home" do
+        subject.reset_sent!
+        subject.receive_line("CWD ..")
+        subject.sent_data.should match(/250.+/)
+        subject.name_prefix.should eql("/")
+      end
 
-    it "responds with 250 if called with '/' from users home" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("CWD /")
-      subject.sent_data.should match(/250.+/)
-      subject.name_prefix.should eql("/")
-    end
+      it "responds with 250 if called with '.' from users home" do
+        subject.reset_sent!
+        subject.receive_line("CWD .")
+        subject.sent_data.should match(/250.+/)
+        subject.name_prefix.should eql("/")
+      end
 
-    it "responds with 250 if called with 'files' from users home" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("CWD files")
-      subject.sent_data.should match(/250.+/)
-      subject.name_prefix.should eql("/files")
-    end
+      it "responds with 250 if called with '/' from users home" do
+        subject.reset_sent!
+        subject.receive_line("CWD /")
+        subject.sent_data.should match(/250.+/)
+        subject.name_prefix.should eql("/")
+      end
 
-    it "responds with 250 if called with 'files/' from users home" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("CWD files/")
-      subject.sent_data.should match(/250.+/)
-      subject.name_prefix.should eql("/files")
-    end
+      it "responds with 250 if called with 'files' from users home" do
+        subject.reset_sent!
+        subject.receive_line("CWD files")
+        subject.sent_data.should match(/250.+/)
+        subject.name_prefix.should eql("/files")
+      end
 
-    it "responds with 250 if called with '/files/' from users home" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("CWD /files/")
-      subject.sent_data.should match(/250.+/)
-      subject.name_prefix.should eql("/files")
-    end
+      it "responds with 250 if called with 'files/' from users home" do
+        subject.reset_sent!
+        subject.receive_line("CWD files/")
+        subject.sent_data.should match(/250.+/)
+        subject.name_prefix.should eql("/files")
+      end
 
-    it "responds with 250 if called with '..' from the files dir" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("CWD files")
-      subject.reset_sent!
-      subject.receive_line("CWD ..")
-      subject.sent_data.should match(/250.+/)
-      subject.name_prefix.should eql("/")
-    end
+      it "responds with 250 if called with '/files/' from users home" do
+        subject.reset_sent!
+        subject.receive_line("CWD /files/")
+        subject.sent_data.should match(/250.+/)
+        subject.name_prefix.should eql("/files")
+      end
 
-    it "responds with 250 if called with '/files' from the files dir" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("CWD files")
-      subject.reset_sent!
-      subject.receive_line("CWD /files")
-      subject.sent_data.should match(/250.+/)
-      subject.name_prefix.should eql("/files")
-    end
+      it "responds with 250 if called with '..' from the files dir" do
+        subject.receive_line("CWD files")
+        subject.reset_sent!
+        subject.receive_line("CWD ..")
+        subject.sent_data.should match(/250.+/)
+        subject.name_prefix.should eql("/")
+      end
 
-    it "responds with 550 if called with unrecognised dir" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.name_prefix.should eql("/")
-      subject.receive_line("CWD test")
-      subject.sent_data.should match(/550.+/)
-      subject.name_prefix.should eql("/")
+      it "responds with 250 if called with '/files' from the files dir" do
+        subject.receive_line("CWD files")
+        subject.reset_sent!
+        subject.receive_line("CWD /files")
+        subject.sent_data.should match(/250.+/)
+        subject.name_prefix.should eql("/files")
+      end
+
+      it "responds with 550 if called with unrecognised dir" do
+        subject.reset_sent!
+        subject.name_prefix.should eql("/")
+        subject.receive_line("CWD test")
+        subject.sent_data.should match(/550.+/)
+        subject.name_prefix.should eql("/")
+      end
     end
   end
 
@@ -190,80 +213,68 @@ describe FTPServer do
       subject.sent_data.should match(/530.+/)
     end
 
-    it "responds with 150 ...425  when called with no data socket" do
-      subject = FTPServer.new(nil)
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("LIST")
-      subject.sent_data.should match(/150.+425.+/m)
+    context "logged in" do
+      before { log_in }
+
+      it "responds with 150 ...425  when called with no data socket" do
+        subject.reset_sent!
+        subject.receive_line("LIST")
+        subject.sent_data.should match(/150.+425.+/m)
+      end
+
+      it "responds with 150 ... 226 when called in the root dir with no param" do
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("LIST")
+        subject.sent_data.should match(/150.+226.+/m)
+        subject.oobdata.split(FTPServer::LBRK).should eql(@root_array)
+      end
+
+      it "responds with 150 ... 226 when called in the files dir with no param" do
+        subject.receive_line("CWD files")
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("LIST")
+        subject.sent_data.should match(/150.+226.+/m)
+        subject.oobdata.split(FTPServer::LBRK).should eql(@files_array)
+      end
+
+      it "responds with 150 ... 226 when called in the files dir with wildcard (LIST *.txt)"
+
+      it "responds with 150 ... 226 when called in the subdir with .. param" do
+        subject.receive_line("CWD files")
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("LIST ..")
+        subject.sent_data.should match(/150.+226.+/m)
+        subject.oobdata.split(FTPServer::LBRK).should eql(@root_array)
+      end
+
+      it "responds with 150 ... 226 when called in the subdir with / param" do
+        subject.receive_line("CWD files")
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("LIST /")
+        subject.sent_data.should match(/150.+226.+/m)
+        subject.oobdata.split(FTPServer::LBRK).should eql(@root_array)
+      end
+
+      it "responds with 150 ... 226 when called in the root with files param" do
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("LIST files")
+        subject.sent_data.should match(/150.+226.+/m)
+        subject.oobdata.split(FTPServer::LBRK).should eql(@files_array)
+      end
+
+      it "responds with 150 ... 226 when called in the root with files/ param" do
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("LIST files/")
+        subject.sent_data.should match(/150.+226.+/m)
+        subject.oobdata.split(FTPServer::LBRK).should eql(@files_array)
+      end
     end
-
-    it "responds with 150 ... 226 when called in the root dir with no param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("LIST")
-      subject.sent_data.should match(/150.+226.+/m)
-      subject.oobdata.split(FTPServer::LBRK).should eql(@root_array)
-    end
-
-    it "responds with 150 ... 226 when called in the files dir with no param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("CWD files")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("LIST")
-      subject.sent_data.should match(/150.+226.+/m)
-      subject.oobdata.split(FTPServer::LBRK).should eql(@files_array)
-    end
-
-    it "responds with 150 ... 226 when called in the files dir with wildcard (LIST *.txt)"
-
-    it "responds with 150 ... 226 when called in the subdir with .. param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("CWD files")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("LIST ..")
-      subject.sent_data.should match(/150.+226.+/m)
-      subject.oobdata.split(FTPServer::LBRK).should eql(@root_array)
-    end
-
-    it "responds with 150 ... 226 when called in the subdir with / param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("CWD files")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("LIST /")
-      subject.sent_data.should match(/150.+226.+/m)
-      subject.oobdata.split(FTPServer::LBRK).should eql(@root_array)
-    end
-
-    it "responds with 150 ... 226 when called in the root with files param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("LIST files")
-      subject.sent_data.should match(/150.+226.+/m)
-      subject.oobdata.split(FTPServer::LBRK).should eql(@files_array)
-    end
-
-    it "responds with 150 ... 226 when called in the root with files/ param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("LIST files/")
-      subject.sent_data.should match(/150.+226.+/m)
-      subject.oobdata.split(FTPServer::LBRK).should eql(@files_array)
-    end
-
   end
 
   describe "MKD" do
@@ -275,34 +286,32 @@ describe FTPServer do
   end
 
   describe "MODE" do
-    it "responds with 553 when called with no param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("MODE")
-      subject.sent_data.should match(/553.+/)
-    end
-
     it "always responds with 530 when called by user not logged in" do
       subject.reset_sent!
       subject.receive_line("MODE S")
       subject.sent_data.should match(/530.+/)
     end
 
-    it "always responds with 200 when called with S param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("MODE S")
-      subject.sent_data.should match(/200.+/)
-    end
+    context "logged in" do
+      before do
+        log_in
+        subject.reset_sent!
+      end
 
-    it "always responds with 504 when called with non-S param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("MODE F")
-      subject.sent_data.should match(/504.+/)
+      it "responds with 553 when called with no param" do
+        subject.receive_line("MODE")
+        subject.sent_data.should match(/553.+/)
+      end
+
+      it "always responds with 200 when called with S param" do
+        subject.receive_line("MODE S")
+        subject.sent_data.should match(/200.+/)
+      end
+
+      it "always responds with 504 when called with non-S param" do
+        subject.receive_line("MODE F")
+        subject.sent_data.should match(/504.+/)
+      end
     end
   end
 
@@ -320,80 +329,68 @@ describe FTPServer do
       subject.sent_data.should match(/530.+/)
     end
 
-    it "responds with 150 ...425  when called with no data socket" do
-      subject = FTPServer.new(nil)
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("NLST")
-      subject.sent_data.should match(/150.+425.+/m)
+    context "logged in" do
+      before { log_in }
+
+      it "responds with 150 ...425  when called with no data socket" do
+        subject.reset_sent!
+        subject.receive_line("NLST")
+        subject.sent_data.should match(/150.+425.+/m)
+      end
+
+      it "responds with 150 ... 226 when called in the root dir with no param" do
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("NLST")
+        subject.sent_data.should match(/150.+226.+/m)
+        subject.oobdata.split(FTPServer::LBRK).should eql(@root_array)
+      end
+
+      it "responds with 150 ... 226 when called in the files dir with no param" do
+        subject.receive_line("CWD files")
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("NLST")
+        subject.sent_data.should match(/150.+226.+/m)
+        subject.oobdata.split(FTPServer::LBRK).should eql(@files_array)
+      end
+
+      it "responds with 150 ... 226 when called in the files dir with wildcard (LIST *.txt)"
+
+      it "responds with 150 ... 226 when called in the subdir with .. param" do
+        subject.receive_line("CWD files")
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("NLST ..")
+        subject.sent_data.should match(/150.+226.+/m)
+        subject.oobdata.split(FTPServer::LBRK).should eql(@root_array)
+      end
+
+      it "responds with 150 ... 226 when called in the subdir with / param" do
+        subject.receive_line("CWD files")
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("NLST /")
+        subject.sent_data.should match(/150.+226.+/m)
+        subject.oobdata.split(FTPServer::LBRK).should eql(@root_array)
+      end
+
+      it "responds with 150 ... 226 when called in the root with files param" do
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("NLST files")
+        subject.sent_data.should match(/150.+226.+/m)
+        subject.oobdata.split(FTPServer::LBRK).should eql(@files_array)
+      end
+
+      it "responds with 150 ... 226 when called in the root with files/ param" do
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("NLST files/")
+        subject.sent_data.should match(/150.+226.+/m)
+        subject.oobdata.split(FTPServer::LBRK).should eql(@files_array)
+      end
     end
-
-    it "responds with 150 ... 226 when called in the root dir with no param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("NLST")
-      subject.sent_data.should match(/150.+226.+/m)
-      subject.oobdata.split(FTPServer::LBRK).should eql(@root_array)
-    end
-
-    it "responds with 150 ... 226 when called in the files dir with no param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("CWD files")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("NLST")
-      subject.sent_data.should match(/150.+226.+/m)
-      subject.oobdata.split(FTPServer::LBRK).should eql(@files_array)
-    end
-
-    it "responds with 150 ... 226 when called in the files dir with wildcard (LIST *.txt)"
-
-    it "responds with 150 ... 226 when called in the subdir with .. param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("CWD files")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("NLST ..")
-      subject.sent_data.should match(/150.+226.+/m)
-      subject.oobdata.split(FTPServer::LBRK).should eql(@root_array)
-    end
-
-    it "responds with 150 ... 226 when called in the subdir with / param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("CWD files")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("NLST /")
-      subject.sent_data.should match(/150.+226.+/m)
-      subject.oobdata.split(FTPServer::LBRK).should eql(@root_array)
-    end
-
-    it "responds with 150 ... 226 when called in the root with files param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("NLST files")
-      subject.sent_data.should match(/150.+226.+/m)
-      subject.oobdata.split(FTPServer::LBRK).should eql(@files_array)
-    end
-
-    it "responds with 150 ... 226 when called in the root with files/ param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("NLST files/")
-      subject.sent_data.should match(/150.+226.+/m)
-      subject.oobdata.split(FTPServer::LBRK).should eql(@files_array)
-    end
-
   end
 
   describe "NOOP" do
@@ -413,28 +410,27 @@ describe FTPServer do
       subject.sent_data.should match(/530.+/)
     end
 
-    it "always responds with 257 \"/\" when called from root dir" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("PWD")
-      subject.sent_data.strip.should eql("257 \"/\" is the current directory")
-    end
+    context "logged in" do
+      before { log_in }
 
-    it "always responds with 257 \"/files\" when called from files dir" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("CWD files")
-      subject.reset_sent!
-      subject.receive_line("PWD")
-      subject.sent_data.strip.should eql("257 \"/files\" is the current directory")
+      it "always responds with 257 \"/\" when called from root dir" do
+        subject.reset_sent!
+        subject.receive_line("PWD")
+        subject.sent_data.strip.should eql("257 \"/\" is the current directory")
+      end
+
+      it "always responds with 257 \"/files\" when called from files dir" do
+        subject.receive_line("CWD files")
+        subject.reset_sent!
+        subject.receive_line("PWD")
+        subject.sent_data.strip.should eql("257 \"/files\" is the current directory")
+      end
     end
   end
 
   describe "PASS" do
     it "responds with 202 when called by logged in user" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
+      log_in
       subject.reset_sent!
       subject.receive_line("PASS 1234")
       subject.sent_data.should match(/202.+/)
@@ -456,45 +452,42 @@ describe FTPServer do
   end
 
   describe "RETR" do
-    it "responds with 553 when called with no param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("RETR")
-      subject.sent_data.should match(/553.+/)
-    end
-
     it "always responds with 530 when called by user not logged in" do
       subject.reset_sent!
       subject.receive_line("RETR blah.txt")
       subject.sent_data.should match(/530.+/)
     end
 
-    it "always responds with 551 when called with an invalid file" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("RETR blah.txt")
-      subject.sent_data.should match(/551.+/)
-    end
+    context "logged in" do
+      before { log_in }
 
-    it "always responds with 150..226 when called with valid file" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("RETR one.txt")
-      subject.sent_data.should match(/150.+226.+/m)
-    end
+      it "responds with 553 when called with no param" do
+        log_in
+        subject.reset_sent!
+        subject.receive_line("RETR")
+        subject.sent_data.should match(/553.+/)
+      end
 
-    it "always responds with 150..226 when called outside files dir with appropriate param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("PASV")
-      subject.reset_sent!
-      subject.receive_line("RETR files/two.txt")
-      subject.sent_data.should match(/150.+226.+/m)
+      it "always responds with 551 when called with an invalid file" do
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("RETR blah.txt")
+        subject.sent_data.should match(/551.+/)
+      end
+
+      it "always responds with 150..226 when called with valid file" do
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("RETR one.txt")
+        subject.sent_data.should match(/150.+226.+/m)
+      end
+
+      it "always responds with 150..226 when called outside files dir with appropriate param" do
+        subject.receive_line("PASV")
+        subject.reset_sent!
+        subject.receive_line("RETR files/two.txt")
+        subject.sent_data.should match(/150.+226.+/m)
+      end
     end
   end
 
@@ -545,79 +538,71 @@ describe FTPServer do
       subject.sent_data.should match(/530.+/)
     end
 
-    it "always responds with 553 when called with no param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("SIZE")
-      subject.sent_data.should match(/553.+/)
-    end
+    context "logged in" do
+      before { log_in }
 
-    it "always responds with 450 when called with a directory param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("SIZE files")
-      subject.sent_data.should match(/450.+/)
-    end
+      it "always responds with 553 when called with no param" do
+        subject.reset_sent!
+        subject.receive_line("SIZE")
+        subject.sent_data.should match(/553.+/)
+      end
 
-    it "always responds with 450 when called with a non-file param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("SIZE blah")
-      subject.sent_data.should match(/450.+/)
-    end
+      it "always responds with 450 when called with a directory param" do
+        subject.reset_sent!
+        subject.receive_line("SIZE files")
+        subject.sent_data.should match(/450.+/)
+      end
 
-    it "always responds with 213 when called with a valid file param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("CWD outgoing")
-      subject.reset_sent!
-      subject.receive_line("SIZE one.txt")
-      subject.sent_data.strip.should eql("213 56")
-    end
+      it "always responds with 450 when called with a non-file param" do
+        subject.reset_sent!
+        subject.receive_line("SIZE blah")
+        subject.sent_data.should match(/450.+/)
+      end
 
-    it "always responds with 213 when called with a valid file param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("SIZE files/two.txt")
-      subject.sent_data.strip.should eql("213 40")
+      it "always responds with 213 when called with a valid file param" do
+        subject.receive_line("CWD outgoing")
+        subject.reset_sent!
+        subject.receive_line("SIZE one.txt")
+        subject.sent_data.strip.should eql("213 56")
+      end
+
+      it "always responds with 213 when called with a valid file param" do
+        subject.reset_sent!
+        subject.receive_line("SIZE files/two.txt")
+        subject.sent_data.strip.should eql("213 40")
+      end
     end
   end
 
   # TODO STOR
 
   describe "STRU" do
-    it "responds with 553 when called with no param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("STRU")
-      subject.sent_data.should match(/553.+/)
-    end
-
     it "always responds with 530 when called by user not logged in" do
       subject.reset_sent!
       subject.receive_line("STRU F")
       subject.sent_data.should match(/530.+/)
     end
 
-    it "always responds with 200 when called with F param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("STRU F")
-      subject.sent_data.should match(/200.+/)
-    end
+    context "logged in" do
+      before { log_in }
 
-    it "always responds with 504 when called with non-F param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("STRU S")
-      subject.sent_data.should match(/504.+/)
+      it "responds with 553 when called with no param" do
+        subject.reset_sent!
+        subject.receive_line("STRU")
+        subject.sent_data.should match(/553.+/)
+      end
+
+      it "always responds with 200 when called with F param" do
+        subject.reset_sent!
+        subject.receive_line("STRU F")
+        subject.sent_data.should match(/200.+/)
+      end
+
+      it "always responds with 504 when called with non-F param" do
+        subject.reset_sent!
+        subject.receive_line("STRU S")
+        subject.sent_data.should match(/504.+/)
+      end
     end
   end
 
@@ -629,15 +614,13 @@ describe FTPServer do
     end
 
     it "responds with 215 when called by a logged in user" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
+      log_in
       subject.reset_sent!
       subject.receive_line("SYST")
       subject.sent_data.should match(/215.+/)
       subject.sent_data.include?("UNIX").should be_true
       subject.sent_data.include?("L8").should be_true
     end
-
   end
 
   describe "TYPE" do
@@ -647,38 +630,34 @@ describe FTPServer do
       subject.sent_data.should match(/530.+/)
     end
 
-    it "responds with 553 when called with no param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("TYPE")
-      subject.sent_data.should match(/553.+/)
-    end
+    context "logged in" do
+      before { log_in }
 
-    it "responds with 200 when with 'A' called by a logged in user" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("TYPE A")
-      subject.sent_data.should match(/200.+/)
-      subject.sent_data.include?("ASCII").should be_true
-    end
+      it "responds with 553 when called with no param" do
+        subject.reset_sent!
+        subject.receive_line("TYPE")
+        subject.sent_data.should match(/553.+/)
+      end
 
-    it "responds with 200 when with 'I' called by a logged in user" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("TYPE I")
-      subject.sent_data.should match(/200.+/)
-      subject.sent_data.include?("binary").should be_true
-    end
+      it "responds with 200 when with 'A' called by a logged in user" do
+        subject.reset_sent!
+        subject.receive_line("TYPE A")
+        subject.sent_data.should match(/200.+/)
+        subject.sent_data.include?("ASCII").should be_true
+      end
 
-    it "responds with 500 when called by a logged in user with un unrecognised param" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("TYPE T")
-      subject.sent_data.should match(/500.+/)
+      it "responds with 200 when with 'I' called by a logged in user" do
+        subject.reset_sent!
+        subject.receive_line("TYPE I")
+        subject.sent_data.should match(/200.+/)
+        subject.sent_data.include?("binary").should be_true
+      end
+
+      it "responds with 500 when called by a logged in user with un unrecognised param" do
+        subject.reset_sent!
+        subject.receive_line("TYPE T")
+        subject.sent_data.should match(/500.+/)
+      end
     end
   end
 
@@ -690,8 +669,7 @@ describe FTPServer do
     end
 
     it "responds with 500 when called by a logged in user" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
+      log_in
       subject.reset_sent!
       subject.receive_line("USER test")
       subject.sent_data.should match(/500.+/)
@@ -705,23 +683,23 @@ describe FTPServer do
       subject.sent_data.should match(/530.*/)
     end
 
-    it "responds with 250 if called from users home" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("XCUP")
-      subject.sent_data.should match(/250.+/)
-      subject.name_prefix.should eql("/")
-    end
+    context "logged in" do
+      before { log_in }
 
-    it "responds with 250 if called from files dir" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("CWD files")
-      subject.reset_sent!
-      subject.receive_line("XCUP")
-      subject.sent_data.should match(/250.+/)
-      subject.name_prefix.should eql("/")
+      it "responds with 250 if called from users home" do
+        subject.reset_sent!
+        subject.receive_line("XCUP")
+        subject.sent_data.should match(/250.+/)
+        subject.name_prefix.should eql("/")
+      end
+
+      it "responds with 250 if called from files dir" do
+        subject.receive_line("CWD files")
+        subject.reset_sent!
+        subject.receive_line("XCUP")
+        subject.sent_data.should match(/250.+/)
+        subject.name_prefix.should eql("/")
+      end
     end
   end
 
@@ -732,21 +710,20 @@ describe FTPServer do
       subject.sent_data.should match(/530.+/)
     end
 
-    it "always responds with 257 \"/\" when called from root dir" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.reset_sent!
-      subject.receive_line("XPWD")
-      subject.sent_data.strip.should eql("257 \"/\" is the current directory")
-    end
+    context "logged in" do
+      before { log_in }
+      it "always responds with 257 \"/\" when called from root dir" do
+        subject.reset_sent!
+        subject.receive_line("XPWD")
+        subject.sent_data.strip.should eql("257 \"/\" is the current directory")
+      end
 
-    it "always responds with 257 \"/files\" when called from incoming dir" do
-      subject.receive_line("USER test")
-      subject.receive_line("PASS 1234")
-      subject.receive_line("CWD files")
-      subject.reset_sent!
-      subject.receive_line("XPWD")
-      subject.sent_data.strip.should eql("257 \"/files\" is the current directory")
+      it "always responds with 257 \"/files\" when called from incoming dir" do
+        subject.receive_line("CWD files")
+        subject.reset_sent!
+        subject.receive_line("XPWD")
+        subject.sent_data.strip.should eql("257 \"/files\" is the current directory")
+      end
     end
   end
 

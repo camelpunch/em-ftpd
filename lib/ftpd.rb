@@ -4,6 +4,7 @@ require 'rubygems'
 require 'eventmachine'
 require 'socket'
 require 'stringio'
+require 'lib/superhug'
 
 # A demo FTP server, built on top of the EventMacine gem.
 #
@@ -226,6 +227,14 @@ class FTPServer < EM::Protocols::LineAndTextProtocol
     send_response "200"
   end
 
+  def authentic?(username, password)
+    Superhug.post('/user_session.json', :body => {
+      :user_session => {
+        :username => username,
+        :password => password
+    }}).success?
+  end
+
   # handle the PASS FTP command. This is the second stage of a user logging in
   def cmd_pass(param)
     send_response "202 User already logged in" and return if @user
@@ -235,7 +244,7 @@ class FTPServer < EM::Protocols::LineAndTextProtocol
     # return an error message if:
     #  - the specified username isn't in our system
     #  - the password is wrong
-    if @requested_user != "test" || param != "1234"
+    unless authentic?(@requested_user, param)
       @user = nil
       send_response "530 incorrect login. not logged in."
       return
