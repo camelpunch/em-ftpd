@@ -1,7 +1,7 @@
 # coding: utf-8
 
 require 'rubygems'
-require 'spec'
+require 'bundler/setup'
 require 'ftpd'
 
 class FTPServer
@@ -79,7 +79,7 @@ class FTPPassiveDataSocket
 
 end
 
-context FTPServer, "initialisation" do
+describe FTPServer, "initialisation" do
 
   before(:each) do
     @c = FTPServer.new(nil)
@@ -94,7 +94,7 @@ context FTPServer, "initialisation" do
   end
 end
 
-context FTPServer, "ALLO" do
+describe FTPServer, "ALLO" do
 
   specify "should always respond with 202 when called" do
     @c = FTPServer.new(nil)
@@ -104,7 +104,7 @@ context FTPServer, "ALLO" do
   end
 end
 
-context FTPServer, "CDUP" do
+describe FTPServer, "CDUP" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -137,7 +137,7 @@ context FTPServer, "CDUP" do
 
 end
 
-context FTPServer, "CWD" do
+describe FTPServer, "CWD" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -234,7 +234,7 @@ context FTPServer, "CWD" do
 
 end
 
-context FTPServer, "DELE" do
+describe FTPServer, "DELE" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -245,7 +245,7 @@ context FTPServer, "DELE" do
   end
 end
 
-context FTPServer, "HELP" do
+describe FTPServer, "HELP" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -256,7 +256,7 @@ context FTPServer, "HELP" do
   end
 end
 
-context FTPServer, "LIST" do
+describe FTPServer, "LIST" do
 
   before(:each) do
     timestr = Time.now.strftime("%b %d %H:%M")
@@ -356,7 +356,7 @@ context FTPServer, "LIST" do
 
 end
 
-context FTPServer, "MKD" do
+describe FTPServer, "MKD" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -367,7 +367,7 @@ context FTPServer, "MKD" do
   end
 end
 
-context FTPServer, "MODE" do
+describe FTPServer, "MODE" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -402,7 +402,7 @@ context FTPServer, "MODE" do
   end
 end
 
-context FTPServer, "NLST" do
+describe FTPServer, "NLST" do
 
   before(:each) do
     timestr = Time.now.strftime("%b %d %H:%M")
@@ -493,7 +493,7 @@ context FTPServer, "NLST" do
 
 end
 
-context FTPServer, "NOOP" do
+describe FTPServer, "NOOP" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -507,7 +507,7 @@ end
 
 # TODO PASV
 
-context FTPServer, "PWD" do
+describe FTPServer, "PWD" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -536,7 +536,7 @@ context FTPServer, "PWD" do
   end
 end
 
-context FTPServer, "PASS" do
+describe FTPServer, "PASS" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -564,7 +564,7 @@ context FTPServer, "PASS" do
 
 end
 
-context FTPServer, "RETR" do
+describe FTPServer, "RETR" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -611,7 +611,7 @@ context FTPServer, "RETR" do
   end
 end
 
-context FTPServer, "REST" do
+describe FTPServer, "REST" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -623,7 +623,7 @@ context FTPServer, "REST" do
   end
 end
 
-context FTPServer, "RMD" do
+describe FTPServer, "RMD" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -635,7 +635,7 @@ context FTPServer, "RMD" do
   end
 end
 
-context FTPServer, "RNFR" do
+describe FTPServer, "RNFR" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -647,7 +647,7 @@ context FTPServer, "RNFR" do
   end
 end
 
-context FTPServer, "RNTO" do
+describe FTPServer, "RNTO" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -659,7 +659,7 @@ context FTPServer, "RNTO" do
   end
 end
 
-context FTPServer, "QUIT" do
+describe FTPServer, "QUIT" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -672,7 +672,7 @@ context FTPServer, "QUIT" do
 end
 
 
-context FTPServer, "SIZE" do
+describe FTPServer, "SIZE" do
 
   before(:each) do
     @c = FTPServer.new(nil)
@@ -728,7 +728,7 @@ end
 
 # TODO STOR
 
-context FTPServer, "STRU" do
+describe FTPServer, "STRU" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -763,7 +763,7 @@ context FTPServer, "STRU" do
   end
 end
 
-context FTPServer, "SYST" do
+describe FTPServer, "SYST" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -786,7 +786,7 @@ context FTPServer, "SYST" do
 
 end
 
-context FTPServer, "TYPE" do
+describe FTPServer, "TYPE" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -833,7 +833,7 @@ context FTPServer, "TYPE" do
 
 end
 
-context FTPServer, "USER" do
+describe FTPServer, "USER" do
 
   before(:each) do
     @c = FTPServer.new(nil)
@@ -855,7 +855,7 @@ context FTPServer, "USER" do
 
 end
 
-context FTPServer, "XCUP" do
+describe FTPServer, "XCUP" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -886,7 +886,7 @@ context FTPServer, "XCUP" do
   end
 end
 
-context FTPServer, "XPWD" do
+describe FTPServer, "XPWD" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
@@ -915,7 +915,7 @@ context FTPServer, "XPWD" do
   end
 end
 
-context FTPServer, "XRMD" do
+describe FTPServer, "XRMD" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
