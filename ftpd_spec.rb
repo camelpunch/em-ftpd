@@ -20,7 +20,7 @@ class FTPServer
   def oobdata
     @oobdata ||= ""
   end
-  
+
   def reset_oobdata!
     @oobdata = ""
   end
@@ -309,9 +309,9 @@ describe FTPServer, "LIST" do
     @c.sent_data.should match(/150.+226.+/m)
     @c.oobdata.split(FTPServer::LBRK).should eql(@files_array)
   end
-  
+
   specify "should respond with 150 ... 226 when called in the files dir with wildcard (LIST *.txt)"
-  
+
   specify "should respond with 150 ... 226 when called in the subdir with .. param" do
     @c.receive_line("USER test")
     @c.receive_line("PASS 1234")
@@ -322,7 +322,7 @@ describe FTPServer, "LIST" do
     @c.sent_data.should match(/150.+226.+/m)
     @c.oobdata.split(FTPServer::LBRK).should eql(@root_array)
   end
-  
+
   specify "should respond with 150 ... 226 when called in the subdir with / param" do
     @c.receive_line("USER test")
     @c.receive_line("PASS 1234")
@@ -333,7 +333,7 @@ describe FTPServer, "LIST" do
     @c.sent_data.should match(/150.+226.+/m)
     @c.oobdata.split(FTPServer::LBRK).should eql(@root_array)
   end
-  
+
   specify "should respond with 150 ... 226 when called in the root with files param" do
     @c.receive_line("USER test")
     @c.receive_line("PASS 1234")
@@ -343,7 +343,7 @@ describe FTPServer, "LIST" do
     @c.sent_data.should match(/150.+226.+/m)
     @c.oobdata.split(FTPServer::LBRK).should eql(@files_array)
   end
-  
+
   specify "should respond with 150 ... 226 when called in the root with files/ param" do
     @c.receive_line("USER test")
     @c.receive_line("PASS 1234")
@@ -511,7 +511,7 @@ describe FTPServer, "PWD" do
   before(:each) do
     @c = FTPServer.new(nil)
   end
-  
+
   specify "should always respond with 550 (permission denied) when called by non-logged in user" do
     @c.reset_sent!
     @c.receive_line("PWD")
